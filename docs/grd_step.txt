@@ -1,0 +1,13 @@
+Step Parameter
+
+The tool also produces excellent results for town or cities
+but buildings larger than the step size can be problematic.
+The default step size is 5 meters, which is good for forest
+or mountains. For towns or flat terrains '-town' the step
+size is increased to 10 meters. For cities or warehouses
+'-city' the step size is increased to 25 meters. For very
+large cities use '-metro' and the step size is increased
+to 50 meters You can also set it directly with '-step 35'.
+
+GSL Note:
+step=3 has provided good results

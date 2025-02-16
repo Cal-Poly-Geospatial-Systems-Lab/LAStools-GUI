@@ -1,0 +1,79 @@
+# lasground
+
+This is a tool for bare-earth extraction: it classifies LIDAR
+points into ground points (class = 2) and non-ground points
+(class = 1). This tools works very well in natural environments
+such as mountains, forests, fields, hills, or other terrain
+with few man-made objects. Note that lasground was designed for
+airborne LiDAR. When using lasground with terrestrial or with
+mobile data play with the '-not_airborne' option (which may
+work better) or try the '-no_stddev' or '-no_bulge' flags.
+
+You can use other classifications than the ASRPS standard with
+'-ground_class 10' or '-non_ground_class 25'. It is possible to
+leave the classification of points that are not added to the
+ground class intact with option '-non_ground_unchanged'.
+
+The tool also produces excellent results for town or cities
+but buildings larger than the step size can be problematic.
+The default step size is 5 meters, which is good for forest
+or mountains. For towns or flat terrains '-town' the step
+size is increased to 10 meters. For cities or warehouses
+'-city' the step size is increased to 25 meters. For very
+large cities use '-metro' and the step size is increased
+to 50 meters You can also set it directly with '-step 35'.
+
+You can classify the points '-by_flightline' assuming that
+the point source ID of each point properly specifies from
+which flightline a point is.
+
+It is important to tell the tool whether the horizontal and
+vertical units are meters (which is assumed by default) or
+'-feet' or '-elevation_feet'. Should the LAS file contain
+projection information then there is no need to specify this
+explicitly. If the input coordinates are in an earth-centered
+or a longlat representation, the file needs converted to, for
+example, a UTM projection first. That said, some folks have
+successfully ground-classified longlat represtations using a
+very small '-step 0.000005' or so.
+
+By default the tool only considers the last return. Earlier
+returns are considered non-ground. You can turn this off by
+requesting '-all_returns'. If you want to leave out certain
+classifications from the bare-earth calculation you can do
+so with '-ignore_class 7'.
+
+For very steep hills you can intensify the search for initial
+ground points with '-fine' or '-extra_fine' and similarly for
+flat terrains you can simplify the search with '-coarse' or
+'-extra_coarse' but try the default setting first. 
+
+The experienced user can fine-tune the algorithm by specifing
+the threshold in meters at which spikes get removed. setting
+'-spike 0.5' will remove up-spikes above 50 centimeter and
+down-spikes below 5 meters in the coarsest TIN.
+
+Another parameter of interest is the '-bulge 1.0' parameter
+that specifies how much the TIN is allowed to bulge up when
+including points as it is getting refined. The default bulge
+is one tenth of the step for step sizes larger than 5 meters
+and one fifth of the step otherwise. Especially for ground-
+classification of non-LiDAR points such as dense-matching or
+photogrammetry output by Agisoft of Pix4D the fine-tuning of
+this parameter can produce great results.
+
+The maximal standard deviation for planar patches in centimeter
+can be set with '-stddev 10'. The maximal offset in meters up
+to which points above the current ground estimate get included
+can be set with '-offset 0.1'.
+
+Finally you can ask lasground to compute the height above the
+ground for each point (so you can use lasclassify next without
+needing to run lasheight first) with '-compute_height' or even
+ask to have the computed height replace the elevation value with
+option '-replace_z'. Then you directly get a height normalized
+LAS/LAZ file that can be used, for example, with lascanopy or
+lasgrid for canopy height model (CHM) computations.
+
+Should lasground miss-behave try turning off some optimizations
+using the '-no_stddev' or the '-no_bulge' flags.
