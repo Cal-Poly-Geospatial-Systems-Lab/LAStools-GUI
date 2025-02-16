@@ -1,0 +1,8 @@
+Spike Parameter
+
+The experienced user can fine-tune the algorithm by specifing
+the threshold in meters at which spikes get removed. setting
+'-spike 0.5' will remove up-spikes above 50 centimeter and
+down-spikes below 5 meters in the coarsest TIN.
+
+-spike [n]                    : remove up and down spikes > [n] centimeter 

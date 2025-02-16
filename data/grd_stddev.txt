@@ -1,0 +1,11 @@
+Standard Deviation parameter
+
+The maximal standard deviation for planar patches in centimeter
+can be set with '-stddev 10'. The maximal offset in meters up
+to which points above the current ground estimate get included
+can be set with '-offset 0.1'.
+
+-stddev [n]                   : set maximal standard deviation of [n]{meter} for planar patches  
+
+GSL Notes:
+setting this value to zero yeilded good results

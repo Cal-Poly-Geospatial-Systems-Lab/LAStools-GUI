@@ -1,0 +1,8 @@
+Offset Parameter
+
+The maximal standard deviation for planar patches in centimeter
+can be set with '-stddev 10'. The maximal offset in meters up
+to which points above the current ground estimate get included
+can be set with '-offset 0.1'.
+
+-offset [n]                   : offset [n] that points can be above bulged ground TIN and still become ground (default=0.05)  

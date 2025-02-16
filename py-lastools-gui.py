@@ -100,7 +100,7 @@ class CommandWrapperApp:
         info_button = ttk.Button(
             ground_lb_frame,
             text="View Info",
-            command=lambda: self.update_info_box(f"docs/grd_lasground.txt"),
+            command=lambda: self.update_info_box(resource_path("data/grd_lasground.txt")),
         )
         info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
         ground_lb_frame.grid(row=0, column=0, pady=2, sticky=tk.W)
@@ -145,7 +145,26 @@ class CommandWrapperApp:
         info_button = ttk.Button(
             grd_step_frame,
             text="View Info",
-            command=lambda: self.update_info_box(f"docs/grd_step.txt"),
+            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
+        )
+        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+
+        self.grd_step = ttk.Entry(
+            grd_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.grd_step.insert(0, DEF_GRD_STEP)
+        self.grd_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+        grd_step_frame.grid(row=3, column=0, pady=2, stick=tk.W)
+
+        # compute height parameter
+        grd_step_frame = ttk.Frame(processing_frame)
+        ttk.Label(grd_step_frame, text="Compute_height:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = grd_step_frame.register(self.decimal_validation)
+        # Info button
+        info_button = ttk.Button(
+            grd_step_frame,
+            text="View Info",
+            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
         )
         info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
@@ -162,13 +181,14 @@ class CommandWrapperApp:
             else:
                 entry.config(state=tk.DISABLED)
 
-        toogle_parameters_frame = ["stddev", "offset", "bulge", "spike", "sub"]
+        
+        toggle_parameters_frame = ["stddev", "offset", "bulge", "spike", "sub"]
 
         # Dictionary to store frames, variables, and entry widgets
         toggle_elements = {}
 
         start_row = 4
-        for param in toogle_parameters_frame:
+        for param in toggle_parameters_frame:
             frame = ttk.Frame(processing_frame)
             var = tk.IntVar()
 
@@ -195,7 +215,7 @@ class CommandWrapperApp:
             info_button = ttk.Button(
                 frame,
                 text="View Info",
-                command=lambda e=param: self.update_info_box(f"docs/grd_{e}.txt"),
+                command=lambda e=param: self.update_info_box(resource_path(f"data/grd_{e}.txt")),
             )
             info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
@@ -241,7 +261,7 @@ class CommandWrapperApp:
         info_button = ttk.Button(
             ground_lb_frame,
             text="View Info",
-            command=lambda: self.update_info_box(f"docs/hill_blast.txt"),
+            command=lambda: self.update_info_box(resource_path("data/hill_blast.txt")),
         )
         info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
         ground_lb_frame.grid(row=10, column=0, pady=2, sticky=tk.W)
@@ -260,15 +280,7 @@ class CommandWrapperApp:
                     + str(toggle_args_dict.get(arg).get("entry").get())
                 )
 
-    def create_widgets(self):
-        """Create all widgets for the UI."""
-
-        ### widgets
-        # Title label
-        title_lb = ttk.Label(self.root, text=WINDOW_TITLE, font=TITLE_FONT)
-
-        input_lb = ttk.Label(self.root, text="Input Selection", font=H1_FONT)
-
+    def create_input_frame(self):
         # Frame for input selector and button
         input_frame = ttk.Frame(self.root)
         ttk.Label(input_frame, text="Select File:").pack(
@@ -296,6 +308,17 @@ class CommandWrapperApp:
         )
         view_button.pack(side=tk.RIGHT)
 
+
+    def create_widgets(self):
+        """Create all widgets for the UI."""
+
+        ### widgets
+        # Title label
+        title_lb = ttk.Label(self.root, text=WINDOW_TITLE, font=TITLE_FONT)
+
+        input_lb = ttk.Label(self.root, text="Input Selection", font=H1_FONT)
+        input_frame = self.create_input_frame()
+
         # processing frame
         processing_lb = ttk.Label(self.root, text="Processing", font=H1_FONT)
         processing_frame = self.create_processing_frame()
@@ -319,8 +342,6 @@ class CommandWrapperApp:
         self.root.columnconfigure(
             0, minsize=MIN_COL_0_W
         )  # Set minimum size for column 0
-        # self.root.columnconfigure(1, minsize=MIN_COL_0_W)  # Set minimum size for column 0
-
         title_lb.grid(row=0, column=0, pady=2)
 
         ttk.Separator(self.root, orient="horizontal").grid(
@@ -419,6 +440,17 @@ class CommandWrapperApp:
         self.update_output(f"Running command with file: {file_path}")
 
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
 def main():
     """Main function to start the application."""
     lastools_path = LASTOOLS_PATH + "\\bin"
@@ -428,6 +460,7 @@ def main():
     else:
         print(f"Found {lastools_path} ...")
 
+    print(os.getcwd())
     # Create Tkinter root window and pass it to the app
     root = tk.Tk()
     app = CommandWrapperApp(root, lastools_path)
