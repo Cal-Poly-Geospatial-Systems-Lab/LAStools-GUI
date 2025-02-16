@@ -1,0 +1,37 @@
+# blast2dem
+
+This tool can reads billion of LIDAR points from the LAS/LAZ
+format, triangulates them a seamless TIN, and rasters the TIN
+onto a DEM that can optionally be tiled. The output is either
+in BIL, ASC, IMG, XYZ, DTM, TIF, PNG or JPG format. The color
+ramps can be inverted with '-invert_ramp'.
+
+For BIL, ASC, IMG, DTM, and XYZ output one typically stores
+the actual '-elevation', the '-slope, or '-intensity' values
+whereas the TIF, PNG, and JPG formats are usually used for a
+'-hillshade', '-gray', or '-false' coloring, or for the '-rgb'
+raster. The particular range of values to be color mapped can
+be clamped using '-set_min_max 10 100' or their range computed
+with '-compute_min_max'. The color ramps can be inverted with
+'-invert_ramp'.
+
+By default the generated raster is sized based on the extend
+of the bounding box. If the LAS/LAZ file was generated using
+lastile, its extend can be set to that of the tile using the
+'-use_tile_bb' option. Any lastile-generated buffer that the
+tile may have had is then not rastered. This allows to avoid
+boundary artifacts and yet create matching tiles in parallel.
+It is also possible to define the raster extend with setting
+'-ll min_x min_y' and '-ncols 512' and '-nrows 512'.
+
+Automatically a KML file is generated to allow the resulting
+DEM to be displayed inside Google Earth (for TIF/PNG/JPG). In
+case the LAS/LAZ file contains projection information (i.e. a
+VLR with geokeys) this is used for georeferencing the KML file.
+It is also possible to provide the georeferencing information
+in the command-line.
+
+By default triangles whose edges are longer than 100 meters are
+not rasterized. This value can be changed with '-kill 200'. The
+value is always assumed to be meters and will be multipled with
+3.28 for LAS/LAZ files where x and y are known to be in feet.

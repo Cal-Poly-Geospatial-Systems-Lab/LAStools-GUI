@@ -1,0 +1,9 @@
+Compute Height parameter
+
+Finally you can ask lasground to compute the height above the
+ground for each point (so you can use lasclassify next without
+needing to run lasheight first) with '-compute_height' or even
+ask to have the computed height replace the elevation value with
+option '-replace_z'. Then you directly get a height normalized
+LAS/LAZ file that can be used, for example, with lascanopy or
+lasgrid for canopy height model (CHM) computations.

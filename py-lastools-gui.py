@@ -35,6 +35,7 @@ INFOBOX_HEIGHT = 20
 MIN_COL_0_W = 700
 
 DEF_GRD_STEP = "5"
+DEF_GRD_OP_PARAMS_DEC_ENTRY = ["stddev", "offset", "bulge", "spike", "sub"]
 
 
 class CommandWrapperApp:
@@ -49,13 +50,7 @@ class CommandWrapperApp:
         # Create UI components
         self.create_widgets()
 
-    def update_grd_out_file(self, output_file):
-        self.grd_out_file.delete(0, tk.END)
-        self.grd_out_file.insert(0, f"grd_{output_file}")
-
-    def update_grd_out_folder(self, output_folder):
-        self.grd_out_folder.delete(0, tk.END)
-        self.grd_out_folder.insert(0, f"{output_folder}")
+    ### File I/O utility functions
 
     def select_file(self, input_file: ttk.Entry):
         """
@@ -77,6 +72,55 @@ class CommandWrapperApp:
             folder.delete(0, tk.END)
             folder.insert(0, file_path)
 
+    ### Run LASTools Commands
+
+    def run_las_view(self, file_path):
+        if os.path.exists(file_path):
+            self.update_output(f"lasview: {file_path}")
+            command = self.lastools_path + "\\"
+            command += f"lasview64.exe {file_path}"
+            self.update_output(command)
+            returncode = self.check_output(command)
+
+            ### check return code
+            if returncode != 0:
+                print("Error. lasview failed.")
+                sys.exit(1)
+        else:
+            self.update_output(f"Invalid input: {file_path}\n")
+
+    def run_las_ground(self, input_path, output_path, las_args):
+        if input_path:
+            self.update_output(f"lasview: {input_path}")
+            command = self.lastools_path + "\\"
+            command += f"lasground64.exe -v -i {input_path} -o {output_path} {las_args}"
+            self.update_output(command)
+            returncode = self.check_output(command)
+
+            ### check return code
+            if returncode != 0:
+                print("Error. lasground failed.")
+                sys.exit(1)
+        else:
+            self.update_output(f"Invalid input: {input_path}\n")
+
+    def check_output(self, command):
+        """Handles the execution of a command and returns the output."""
+        process = subprocess.Popen(
+            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
+        while True:
+            out = process.stdout.read(1)
+            returncode = process.poll()
+            if out == b"" and returncode is not None:
+                break
+            else:
+                self.update_output(out.decode("utf-8"))
+        returncode = process.poll()
+        return returncode
+
+    ### LASTools command builder utility functions
+
     def decimal_validation(self, P):
         if P == "":  # Allow empty input (for backspacing)
             return True
@@ -86,206 +130,26 @@ class CommandWrapperApp:
         except ValueError:
             return False
 
-    def create_processing_frame(self):
-        processing_frame = ttk.Frame(self.root)
-
-        processing_frame.columnconfigure(0, minsize=MIN_COL_0_W)
-        # grd
-        ground_lb_frame = ttk.Frame(processing_frame)
-
-        ground_lb = ttk.Label(ground_lb_frame, text="Lasground", font=H2_FONT)
-        ground_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
-
-        # Info button
-        info_button = ttk.Button(
-            ground_lb_frame,
-            text="View Info",
-            command=lambda: self.update_info_box(resource_path("data/grd_lasground.txt")),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-        ground_lb_frame.grid(row=0, column=0, pady=2, sticky=tk.W)
-
-        # out file
-        grd_out_file_selector = ttk.Frame(processing_frame)
-        ttk.Label(grd_out_file_selector, text="Output File:").pack(
-            side=tk.LEFT, padx=VIEW_BTN_PADX
-        )
-        self.grd_out_file = ttk.Entry(grd_out_file_selector)
-        self.grd_out_file.insert(0, f"grd_{self.input_path.get()}")
-        self.grd_out_file.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
-
-        grd_out_file_selector.grid(row=1, column=0, pady=2, sticky=tk.EW)
-
-        # out folder
-        grd_out_folder = ttk.Frame(processing_frame)
-        ttk.Label(grd_out_folder, text="Output Folder:").pack(
-            side=tk.LEFT, padx=VIEW_BTN_PADX
-        )
-        # File entry field
-        self.grd_out_folder = ttk.Entry(grd_out_folder)
-        self.grd_out_folder.insert(0, f"{os.path.basename(self.input_path.get())}")
-        self.grd_out_folder.pack(
-            side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX
-        )
-        # Browse button
-        browse_button = ttk.Button(
-            grd_out_folder,
-            text="...",
-            command=lambda: self.select_folder(self.grd_out_folder),
-        )
-        browse_button.pack(side=tk.LEFT)
-
-        grd_out_folder.grid(row=2, column=0, pady=2, sticky=tk.EW)
-
-        # step parameter
-        grd_step_frame = ttk.Frame(processing_frame)
-        ttk.Label(grd_step_frame, text="Step:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
-        v_dec_cmd = grd_step_frame.register(self.decimal_validation)
-        # Info button
-        info_button = ttk.Button(
-            grd_step_frame,
-            text="View Info",
-            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-
-        self.grd_step = ttk.Entry(
-            grd_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
-        )
-        self.grd_step.insert(0, DEF_GRD_STEP)
-        self.grd_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
-        grd_step_frame.grid(row=3, column=0, pady=2, stick=tk.W)
-
-        # compute height parameter
-        grd_step_frame = ttk.Frame(processing_frame)
-        ttk.Label(grd_step_frame, text="Compute_height:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
-        v_dec_cmd = grd_step_frame.register(self.decimal_validation)
-        # Info button
-        info_button = ttk.Button(
-            grd_step_frame,
-            text="View Info",
-            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-
-        self.grd_step = ttk.Entry(
-            grd_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
-        )
-        self.grd_step.insert(0, DEF_GRD_STEP)
-        self.grd_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
-        grd_step_frame.grid(row=3, column=0, pady=2, stick=tk.W)
-
-        def toggle_Entry(var: tk.IntVar, entry: tk.Entry):
-            if var.get() == 1:
-                entry.config(state=tk.NORMAL)
-            else:
-                entry.config(state=tk.DISABLED)
-
-        
-        toggle_parameters_frame = ["stddev", "offset", "bulge", "spike", "sub"]
-
-        # Dictionary to store frames, variables, and entry widgets
-        toggle_elements = {}
-
-        start_row = 4
-        for param in toggle_parameters_frame:
-            frame = ttk.Frame(processing_frame)
-            var = tk.IntVar()
-
-            ttk.Checkbutton(
-                frame,
-                text=f"Enable {param.capitalize()}",
-                variable=var,
-                command=lambda v=var, e=param: toggle_Entry(
-                    v, toggle_elements[e]["entry"]
-                ),
-            ).pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
-
-            ttk.Label(frame, text=f"{param.capitalize()}:").pack(
-                side=tk.LEFT, padx=VIEW_BTN_PADX
-            )
-
-            v_dec_cmd = frame.register(self.decimal_validation)
-            entry = ttk.Entry(frame, validate="all", validatecommand=(v_dec_cmd, "%P"))
-            entry.insert(0, 0)
-            entry.config(state=tk.DISABLED)
-            entry.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
-
-            # Info button
-            info_button = ttk.Button(
-                frame,
-                text="View Info",
-                command=lambda e=param: self.update_info_box(resource_path(f"data/grd_{e}.txt")),
-            )
-            info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-
-            # Store in dictionary
-            toggle_elements[param] = {"var": var, "entry": entry}
-
-            # Pack frame into parent processing frame
-            frame.grid(row=start_row, column=0, pady=2, stick=tk.W)
-            start_row += 1
-
-        # Run command button
-        run_grd_button = ttk.Button(
-            processing_frame,
-            text="Run",
-            command=lambda: [
-                self.set_args(toggle_elements),
-                self.run_las_ground(
-                    self.input_path.get(),
-                    os.path.join(self.grd_out_folder.get(), self.grd_out_file.get()),
-                    self.grd_args,
-                ),
-            ],
-        )
-        run_grd_button.grid(row=9, column=1, pady=2)
-
-        view_button = ttk.Button(
-            processing_frame,
-            text="View",
-            command=lambda: self.run_las_view(
-                os.path.join(self.grd_out_folder.get(), self.grd_out_file.get())
-            ),
-        )
-        view_button.grid(row=9, column=2, pady=2)
-
-
-        #hillshade
-        ground_lb_frame = ttk.Frame(processing_frame)
-
-        ground_lb = ttk.Label(ground_lb_frame, text="Hillshade", font=H2_FONT)
-        ground_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
-
-        # Info button
-        info_button = ttk.Button(
-            ground_lb_frame,
-            text="View Info",
-            command=lambda: self.update_info_box(resource_path("data/hill_blast.txt")),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-        ground_lb_frame.grid(row=10, column=0, pady=2, sticky=tk.W)
-
-        return processing_frame
-
     def set_args(self, toggle_args_dict):
-        self.grd_args = " -step " + self.grd_step.get()
+        """
+        :param input_file: toggle_args_dict dict of arguments, each argument is a dict of {"is_enabled"<bool>, "entry"<string>}
+        :returns arg list of <str>
+        """
+        ret_args = ""
         for arg in toggle_args_dict:
-            print(toggle_args_dict.get(arg).get("var").get())
-            if toggle_args_dict.get(arg).get("var").get() == 1:
-                self.grd_args += (
-                    " -"
-                    + str(arg)
-                    + " "
-                    + str(toggle_args_dict.get(arg).get("entry").get())
-                )
+            if toggle_args_dict.get(arg).get("is_enabled").get():
+                ret_args += " -" + str(arg)
+                sub_arg = toggle_args_dict.get(arg).get("entry")
+                if sub_arg:  # handle args without subargs
+                    ret_args += " " + str(sub_arg.get())
+        return ret_args
+
+    ### Second-level frames
 
     def create_input_frame(self):
         # Frame for input selector and button
         input_frame = ttk.Frame(self.root)
-        ttk.Label(input_frame, text="Select File:").pack(
-            side=tk.LEFT, padx=H2_PADX
-        )
+        ttk.Label(input_frame, text="Select File:").pack(side=tk.LEFT, padx=H2_PADX)
         # File entry field
         self.input_path = ttk.Entry(input_frame)
         self.input_path.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
@@ -308,6 +172,293 @@ class CommandWrapperApp:
         )
         view_button.pack(side=tk.RIGHT)
 
+        return input_frame
+
+    def create_processing_frame(self):
+        processing_frame = ttk.Frame(self.root)
+        processing_frame_row = 0
+
+        processing_frame.columnconfigure(processing_frame_row, minsize=MIN_COL_0_W)
+
+        self.create_ground_command_frame(processing_frame).grid(
+            row=0, column=0, pady=2, sticky=tk.W
+        )
+
+        self.create_dem_command_frame(processing_frame).grid(
+            row=1, column=0, pady=2, sticky=tk.W
+        )
+
+        return processing_frame
+
+    def create_ground_command_frame(self, parent_frame):
+        # Dictionary to store frames, variables, and entry values
+        grd_prams_dict = {}
+
+        # grd frame
+        grd_command_frame = ttk.Frame(parent_frame)
+        grd_command_frame_row = 0
+        grd_command_frame.columnconfigure(grd_command_frame_row, minsize=MIN_COL_0_W)
+
+        # grd label
+        ground_lb_frame = ttk.Frame(grd_command_frame)
+        ground_lb = ttk.Label(ground_lb_frame, text="Lasground", font=H2_FONT)
+        ground_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
+
+        # Info button
+        info_button = ttk.Button(
+            ground_lb_frame,
+            text="Doc. View",
+            command=lambda: self.update_info_box(
+                resource_path("data/grd_lasground.txt")
+            ),
+        )
+        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        ground_lb_frame.grid(row=grd_command_frame_row, column=0, pady=2, sticky=tk.W)
+        grd_command_frame_row += 1
+
+        # out file
+        grd_out_file_selector = ttk.Frame(grd_command_frame)
+        ttk.Label(grd_out_file_selector, text="Output File:").pack(
+            side=tk.LEFT, padx=VIEW_BTN_PADX
+        )
+        self.grd_out_file = ttk.Entry(grd_out_file_selector)
+        self.grd_out_file.insert(0, f"grd_{self.input_path.get()}")
+        self.grd_out_file.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
+
+        grd_out_file_selector.grid(
+            row=grd_command_frame_row, column=0, pady=2, sticky=tk.EW
+        )
+        grd_command_frame_row += 1
+
+        # out folder
+        grd_out_folder = ttk.Frame(grd_command_frame)
+        ttk.Label(grd_out_folder, text="Output Folder:").pack(
+            side=tk.LEFT, padx=VIEW_BTN_PADX
+        )
+        # File entry field
+        self.grd_out_folder = ttk.Entry(grd_out_folder)
+        self.grd_out_folder.insert(0, f"{os.path.basename(self.input_path.get())}")
+        self.grd_out_folder.pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX
+        )
+        # Browse button
+        browse_button = ttk.Button(
+            grd_out_folder,
+            text="...",
+            command=lambda: self.select_folder(self.grd_out_folder),
+        )
+        browse_button.pack(side=tk.LEFT)
+
+        grd_out_folder.grid(row=grd_command_frame_row, column=0, pady=2, sticky=tk.EW)
+        grd_command_frame_row += 1
+
+        # step parameter
+        grd_step_frame = ttk.Frame(grd_command_frame)
+        ttk.Label(grd_step_frame, text="Step:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = grd_step_frame.register(self.decimal_validation)
+        # Info button
+        info_button = ttk.Button(
+            grd_step_frame,
+            text="Doc. View",
+            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
+        )
+        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+
+        self.grd_step = ttk.Entry(
+            grd_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.grd_step.insert(0, DEF_GRD_STEP)
+        self.grd_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+        grd_step_frame.grid(row=grd_command_frame_row, column=0, pady=2, stick=tk.W)
+        grd_command_frame_row += 1
+        grd_step_enabled = tk.BooleanVar()
+        grd_step_enabled.set(True)
+        grd_prams_dict["step"] = {
+            "is_enabled": grd_step_enabled,
+            "entry": self.grd_step,
+        }
+
+        # compute height parameter
+        grd_compute_h_frame = ttk.Frame(grd_command_frame)
+        ttk.Label(grd_compute_h_frame, text="Compute Height:").pack(
+            side=tk.LEFT, padx=VIEW_BTN_PADX
+        )
+        self.compute_height = tk.BooleanVar()
+
+        ttk.Checkbutton(grd_compute_h_frame, variable=self.compute_height).pack(
+            side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX
+        )
+
+        grd_prams_dict["compute_height"] = {
+            "is_enabled": self.compute_height,
+            "entry": None,
+        }
+
+        # Info button
+        info_button = ttk.Button(
+            grd_compute_h_frame,
+            text="Doc. View",
+            command=lambda: self.update_info_box(
+                resource_path("data/grd_compute_height.txt")
+            ),
+        )
+        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        grd_compute_h_frame.grid(
+            row=grd_command_frame_row, column=0, pady=2, stick=tk.W
+        )
+        grd_command_frame_row += 1
+
+        def toggle_Entry(var: tk.IntVar, entry: tk.Entry):
+            if var.get() == True:
+                entry.config(state=tk.NORMAL)
+            else:
+                entry.config(state=tk.DISABLED)
+
+        # optional params with entry fields
+        toggle_param_list = DEF_GRD_OP_PARAMS_DEC_ENTRY
+
+        for param in toggle_param_list:
+            frame = ttk.Frame(grd_command_frame)
+            var = tk.BooleanVar()
+
+            ttk.Checkbutton(
+                frame,
+                text=f"Enable {param.capitalize()}",
+                variable=var,
+                command=lambda v=var, e=param: (
+                    grd_prams_dict[e]["entry"].config(state=tk.NORMAL)
+                    if v.get() is True
+                    else grd_prams_dict[e]["entry"].config(state=tk.DISABLED)
+                ),
+            ).pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+
+            ttk.Label(frame, text=f"{param.capitalize()}:").pack(
+                side=tk.LEFT, padx=VIEW_BTN_PADX
+            )
+
+            v_dec_cmd = frame.register(self.decimal_validation)
+            entry = ttk.Entry(frame, validate="all", validatecommand=(v_dec_cmd, "%P"))
+            entry.insert(0, 0)
+            entry.config(state=tk.DISABLED)
+            entry.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+
+            # Info button
+            info_button = ttk.Button(
+                frame,
+                text="Doc. View",
+                command=lambda e=param: self.update_info_box(
+                    resource_path(f"data/grd_{e}.txt")
+                ),
+            )
+            info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+
+            # Store in dictionary
+            grd_prams_dict[param] = {"is_enabled": var, "entry": entry}
+
+            # Pack frame into parent processing frame
+            frame.grid(row=grd_command_frame_row, column=0, pady=2, stick=tk.W)
+            grd_command_frame_row += 1
+
+        # Run command button
+        run_grd_button = ttk.Button(
+            grd_command_frame,
+            text="Run",
+            command=lambda: self.run_las_ground(
+                self.input_path.get(),
+                os.path.join(self.grd_out_folder.get(), self.grd_out_file.get()),
+                self.set_args(grd_prams_dict),
+            ),
+        )
+        run_grd_button.grid(row=grd_command_frame_row, column=1, pady=2)
+
+        view_button = ttk.Button(
+            grd_command_frame,
+            text="View",
+            command=lambda: self.run_las_view(
+                os.path.join(self.grd_out_folder.get(), self.grd_out_file.get())
+            ),
+        )
+        view_button.grid(row=grd_command_frame_row, column=2, pady=2)
+
+        return grd_command_frame
+
+    def create_dem_command_frame(self, parent_frame):
+        #dem frame
+        dem_command_frame = ttk.Frame(parent_frame)
+        dem_command_frame_row = 0
+        dem_command_frame.columnconfigure(dem_command_frame_row, minsize=MIN_COL_0_W)
+
+        #dem label
+        dem_lb_frame = ttk.Frame(dem_command_frame)
+        dem_lb = ttk.Label(dem_lb_frame, text="Compute DEM", font=H2_FONT)
+        dem_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
+
+        # Info button
+        info_button = ttk.Button(
+            dem_lb_frame,
+            text="Doc. View",
+            command=lambda: self.update_info_box(
+                resource_path("data/dem_blast2dem.txt")
+            ),
+        )
+        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        dem_lb_frame.grid(row=dem_command_frame_row, column=0, pady=2, sticky=tk.W)
+        dem_command_frame_row += 1
+
+        #Input Path
+
+        #Output File
+
+        #Output Folder
+
+        #Resolution Parameter
+
+        #Hillshade Option
+
+            #Azimuth suboption
+
+            #Altitude suboption
+
+        #Run Command Button
+
+        return dem_command_frame
+
+
+    ### GRD Command Callbacks
+
+    def update_grd_out_file(self, output_file):
+        self.grd_out_file.delete(0, tk.END)
+        self.grd_out_file.insert(0, f"grd_{output_file}")
+
+    def update_grd_out_folder(self, output_folder):
+        self.grd_out_folder.delete(0, tk.END)
+        self.grd_out_folder.insert(0, f"{output_folder}")
+
+    ### Main Textboxes
+
+    def update_output(self, message):
+        """Updates the output_text widget with the given message."""
+        self.output_text.config(state=tk.NORMAL)
+        self.output_text.insert(tk.END, message)  # Appends new message
+        self.output_text.update_idletasks()
+        self.output_text.see(tk.END)
+        self.output_text.config(state=tk.DISABLED)
+
+    def update_info_box(self, filename):
+        """Reads a text file and updates the output_text widget with its content."""
+        try:
+            with open(filename, "r", encoding="utf-8") as file:
+                content = file.read()
+
+            self.infobox.config(state=tk.NORMAL)
+            self.infobox.delete("1.0", tk.END)  # Clear previous content
+            self.infobox.insert(tk.END, content)  # Insert new content
+            self.infobox.config(state=tk.DISABLED)
+
+        except FileNotFoundError:
+            print(f"Error: {filename} not found.")
+        except Exception as e:
+            print(f"Error reading {filename}: {e}")
 
     def create_widgets(self):
         """Create all widgets for the UI."""
@@ -322,9 +473,6 @@ class CommandWrapperApp:
         # processing frame
         processing_lb = ttk.Label(self.root, text="Processing", font=H1_FONT)
         processing_frame = self.create_processing_frame()
-
-        # blast_lb = ttk.Label(self.root, text="blast2dem", font=H2_FONT)
-        # hillshade_lb = ttk.Label(self.root, text="hillshade", font=H2_FONT)
 
         # output box
         output_lb = ttk.Label(self.root, text="Output:", font=H1_FONT)
@@ -365,83 +513,9 @@ class CommandWrapperApp:
         infobox_lb.grid(row=2, column=1, pady=2, padx=TITLE_PADX)
         self.infobox.grid(row=3, column=1, rowspan=8, pady=2, padx=2, sticky=tk.NS)
 
-    def run_las_view(self, file_path):
-        if os.path.exists(file_path):
-            self.update_output(f"lasview: {file_path}")
-            command = self.lastools_path + "\\"
-            command += f"lasview64.exe {file_path}"
-            print(command)
-            returncode = self.check_output(command)
-
-            ### check return code
-            if returncode != 0:
-                print("Error. lasview failed.")
-                sys.exit(1)
-        else:
-            self.update_output(f"No input specified: {file_path}\n")
-
-    def run_las_ground(self, input_path, output_path, las_args):
-        if input_path:
-            self.update_output(f"lasview: {input_path}")
-            command = self.lastools_path + "\\"
-            command += f"lasground64.exe -v -i {input_path} -o {output_path} {las_args}"
-            print(command)
-            returncode = self.check_output(command)
-
-            ### check return code
-            if returncode != 0:
-                print("Error. lasground failed.")
-                sys.exit(1)
-        else:
-            self.update_output(f"No input specified: {input_path}\n")
-
-    def check_output(self, command):
-        """Handles the execution of a command and returns the output."""
-        process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        )
-        while True:
-            out = process.stdout.read(1)
-            returncode = process.poll()
-            if out == b"" and returncode is not None:
-                break
-            else:
-                self.update_output(out.decode("utf-8"))
-        returncode = process.poll()
-        return returncode
-
-    def update_output(self, message):
-        """Updates the output_text widget with the given message."""
-        self.output_text.config(state=tk.NORMAL)
-        self.output_text.insert(tk.END, message)  # Appends new message
-        self.output_text.update_idletasks()
-        self.output_text.see(tk.END)
-        self.output_text.config(state=tk.DISABLED)
-
-    def update_info_box(self, filename):
-        """Reads a text file and updates the output_text widget with its content."""
-        try:
-            with open(filename, "r", encoding="utf-8") as file:
-                content = file.read()
-
-            self.infobox.config(state=tk.NORMAL)
-            self.infobox.delete("1.0", tk.END)  # Clear previous content
-            self.infobox.insert(tk.END, content)  # Insert new content
-            self.infobox.config(state=tk.DISABLED)
-
-        except FileNotFoundError:
-            print(f"Error: {filename} not found.")
-        except Exception as e:
-            print(f"Error reading {filename}: {e}")
-
-    def run_command(self):
-        """Placeholder for a generic command run, for future expansion."""
-        file_path = self.input_path.get()
-        self.update_output(f"Running command with file: {file_path}")
-
 
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """Get absolute path to resource, works for dev and for PyInstaller"""
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS

@@ -1,1 +1,2 @@
 https://stackoverflow.com/questions/61494374/how-do-i-run-a-program-installed-with-pip-in-windows
+pyinstaller --onefile --add-data "data/config.txt:data" your_script.py
