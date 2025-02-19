@@ -3,16 +3,16 @@
 # gjyoung@calpoly.edu
 
 import tkinter as tk
-from tkinter import ttk, filedialog
+from tkinter import ttk, filedialog, scrolledtext
 import subprocess
 import os
 import sys
-from tkinter import scrolledtext
+import math
 
 # Static global constants
 WINDOW_TITLE = "Simple LasTools GUI"
 WINDOW_SIZE = "1536x864"  # Increased size to fit new elements
-LASTOOLS_PATH = "F:\\gjyoung\\lastools"
+LASTOOLS_PATH = "C:\\lastools"
 
 # Layout settings
 TITLE_PADY = (10, 10)
@@ -35,8 +35,19 @@ INFOBOX_HEIGHT = 20
 MIN_COL_0_W = 700
 
 DEF_GRD_STEP = "5"
+DEF_DEM_STEP = "0.5"
+DEF_DEM_AZIMUTH = 270
+DEF_DEM_ALTITUDE = 45
+DEF_DEM_R_FACTOR = 1
 DEF_GRD_OP_PARAMS_DEC_ENTRY = ["stddev", "offset", "bulge", "spike", "sub"]
 
+
+### math ultilty
+def sph2cart(azimuth,elevation,r):
+    x = r * math.cos(math.radians(elevation)) * math.cos(math.radians(azimuth))
+    y = r * math.cos(math.radians(elevation)) * math.sin(math.radians(azimuth))
+    z = r * math.sin(math.radians(elevation))
+    return x, y, z
 
 class CommandWrapperApp:
     def __init__(self, root, lastools_path):
@@ -72,6 +83,19 @@ class CommandWrapperApp:
             folder.delete(0, tk.END)
             folder.insert(0, file_path)
 
+
+    def create_info_button(self, frame: ttk.Frame, file : str):
+        """
+        return: ttk Button
+        """
+        return ttk.Button(
+            frame,
+            text="Doc. View",
+            command=lambda: self.update_info_box(
+                resource_path(f"data/{file}.txt")
+            ),
+        )
+
     ### Run LASTools Commands
 
     def run_las_view(self, file_path):
@@ -95,6 +119,7 @@ class CommandWrapperApp:
             command = self.lastools_path + "\\"
             command += f"lasground64.exe -v -i {input_path} -o {output_path} {las_args}"
             self.update_output(command)
+            print(command)
             returncode = self.check_output(command)
 
             ### check return code
@@ -143,24 +168,25 @@ class CommandWrapperApp:
                 if sub_arg:  # handle args without subargs
                     ret_args += " " + str(sub_arg.get())
         return ret_args
+    
 
     ### Second-level frames
 
-    def create_input_frame(self):
+    def create_grd_input_frame(self):
         # Frame for input selector and button
         input_frame = ttk.Frame(self.root)
         ttk.Label(input_frame, text="Select File:").pack(side=tk.LEFT, padx=H2_PADX)
         # File entry field
-        self.input_path = ttk.Entry(input_frame)
-        self.input_path.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
+        self.grd_input_path = ttk.Entry(input_frame)
+        self.grd_input_path.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
         # Browse button
         browse_button = ttk.Button(
             input_frame,
             text="...",
             command=lambda: [
-                self.select_file(self.input_path),
-                self.update_grd_out_file(os.path.basename(self.input_path.get())),
-                self.update_grd_out_folder(os.path.dirname(self.input_path.get())),
+                self.select_file(self.grd_input_path),
+                self.update_grd_out_file(os.path.basename(self.grd_input_path.get())),
+                self.update_grd_out_folder(os.path.dirname(self.grd_input_path.get())),
             ],
         )
         browse_button.pack(side=tk.LEFT)
@@ -168,7 +194,7 @@ class CommandWrapperApp:
         view_button = ttk.Button(
             input_frame,
             text="View",
-            command=lambda: self.run_las_view(self.input_path.get()),
+            command=lambda: self.run_las_view(self.grd_input_path.get()),
         )
         view_button.pack(side=tk.RIGHT)
 
@@ -205,14 +231,7 @@ class CommandWrapperApp:
         ground_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
 
         # Info button
-        info_button = ttk.Button(
-            ground_lb_frame,
-            text="Doc. View",
-            command=lambda: self.update_info_box(
-                resource_path("data/grd_lasground.txt")
-            ),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        self.create_info_button(ground_lb_frame, "grd_lasground").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
         ground_lb_frame.grid(row=grd_command_frame_row, column=0, pady=2, sticky=tk.W)
         grd_command_frame_row += 1
 
@@ -222,7 +241,6 @@ class CommandWrapperApp:
             side=tk.LEFT, padx=VIEW_BTN_PADX
         )
         self.grd_out_file = ttk.Entry(grd_out_file_selector)
-        self.grd_out_file.insert(0, f"grd_{self.input_path.get()}")
         self.grd_out_file.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
 
         grd_out_file_selector.grid(
@@ -231,52 +249,50 @@ class CommandWrapperApp:
         grd_command_frame_row += 1
 
         # out folder
-        grd_out_folder = ttk.Frame(grd_command_frame)
-        ttk.Label(grd_out_folder, text="Output Folder:").pack(
+        grd_out_folder_frame = ttk.Frame(grd_command_frame)
+        ttk.Label(grd_out_folder_frame, text="Output Folder:").pack(
             side=tk.LEFT, padx=VIEW_BTN_PADX
         )
         # File entry field
-        self.grd_out_folder = ttk.Entry(grd_out_folder)
-        self.grd_out_folder.insert(0, f"{os.path.basename(self.input_path.get())}")
+        self.grd_out_folder = ttk.Entry(grd_out_folder_frame)
+        self.grd_out_folder.insert(0, f"{os.path.basename(self.grd_input_path.get())}")
         self.grd_out_folder.pack(
             side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX
         )
         # Browse button
         browse_button = ttk.Button(
-            grd_out_folder,
+            grd_out_folder_frame,
             text="...",
             command=lambda: self.select_folder(self.grd_out_folder),
         )
         browse_button.pack(side=tk.LEFT)
 
-        grd_out_folder.grid(row=grd_command_frame_row, column=0, pady=2, sticky=tk.EW)
+        grd_out_folder_frame.grid(row=grd_command_frame_row, column=0, pady=2, sticky=tk.EW)
         grd_command_frame_row += 1
 
         # step parameter
-        grd_step_frame = ttk.Frame(grd_command_frame)
-        ttk.Label(grd_step_frame, text="Step:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
-        v_dec_cmd = grd_step_frame.register(self.decimal_validation)
+        sub_frame = ttk.Frame(grd_command_frame)
+        ttk.Label(sub_frame, text="Step:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = sub_frame.register(self.decimal_validation)
         # Info button
-        info_button = ttk.Button(
-            grd_step_frame,
-            text="Doc. View",
-            command=lambda: self.update_info_box(resource_path("data/grd_step.txt")),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        self.create_info_button(sub_frame, "grd_step").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
         self.grd_step = ttk.Entry(
-            grd_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+            sub_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
         )
         self.grd_step.insert(0, DEF_GRD_STEP)
         self.grd_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
-        grd_step_frame.grid(row=grd_command_frame_row, column=0, pady=2, stick=tk.W)
+
+        sub_frame.grid(row=grd_command_frame_row, column=0, pady=2, stick=tk.W)
         grd_command_frame_row += 1
-        grd_step_enabled = tk.BooleanVar()
-        grd_step_enabled.set(True)
+
+        tk_bool_true = tk.BooleanVar()
+        tk_bool_true.set(True)
         grd_prams_dict["step"] = {
-            "is_enabled": grd_step_enabled,
+            "is_enabled": tk_bool_true,
             "entry": self.grd_step,
         }
+
 
         # compute height parameter
         grd_compute_h_frame = ttk.Frame(grd_command_frame)
@@ -295,14 +311,7 @@ class CommandWrapperApp:
         }
 
         # Info button
-        info_button = ttk.Button(
-            grd_compute_h_frame,
-            text="Doc. View",
-            command=lambda: self.update_info_box(
-                resource_path("data/grd_compute_height.txt")
-            ),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        self.create_info_button(grd_compute_h_frame, "grd_compute_height").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
         grd_compute_h_frame.grid(
             row=grd_command_frame_row, column=0, pady=2, stick=tk.W
         )
@@ -321,53 +330,49 @@ class CommandWrapperApp:
             frame = ttk.Frame(grd_command_frame)
             var = tk.BooleanVar()
 
+            #create the entry first so it can be referenced by the checkbox
+            v_dec_cmd = frame.register(self.decimal_validation)
+            entry = ttk.Entry(frame, validate="all", validatecommand=(v_dec_cmd, "%P"))
+            entry.insert(0, 0)
+            entry.config(state=tk.DISABLED)
+
+            # Store in dictionary
+            grd_prams_dict[param] = {"is_enabled": var, "entry": entry}
+
             ttk.Checkbutton(
                 frame,
                 text=f"Enable {param.capitalize()}",
                 variable=var,
-                command=lambda v=var, e=param: (
-                    grd_prams_dict[e]["entry"].config(state=tk.NORMAL)
-                    if v.get() is True
-                    else grd_prams_dict[e]["entry"].config(state=tk.DISABLED)
+                command=lambda v=var, e=grd_prams_dict[param].get("entry"): (
+                   toggle_Entry(v, e)
                 ),
             ).pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
 
             ttk.Label(frame, text=f"{param.capitalize()}:").pack(
                 side=tk.LEFT, padx=VIEW_BTN_PADX
             )
-
-            v_dec_cmd = frame.register(self.decimal_validation)
-            entry = ttk.Entry(frame, validate="all", validatecommand=(v_dec_cmd, "%P"))
-            entry.insert(0, 0)
-            entry.config(state=tk.DISABLED)
+            #pack the entry here so it goes in the right place
             entry.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
 
             # Info button
-            info_button = ttk.Button(
-                frame,
-                text="Doc. View",
-                command=lambda e=param: self.update_info_box(
-                    resource_path(f"data/grd_{e}.txt")
-                ),
-            )
-            info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
-
-            # Store in dictionary
-            grd_prams_dict[param] = {"is_enabled": var, "entry": entry}
+            self.create_info_button(frame, f"grd_{param}").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
             # Pack frame into parent processing frame
             frame.grid(row=grd_command_frame_row, column=0, pady=2, stick=tk.W)
             grd_command_frame_row += 1
 
-        # Run command button
+        # Run command button update dem inputs on run
         run_grd_button = ttk.Button(
             grd_command_frame,
             text="Run",
-            command=lambda: self.run_las_ground(
-                self.input_path.get(),
-                os.path.join(self.grd_out_folder.get(), self.grd_out_file.get()),
-                self.set_args(grd_prams_dict),
-            ),
+            command=lambda: [
+                self.run_las_ground(self.grd_input_path.get(),
+                    os.path.join(self.grd_out_folder.get(), self.grd_out_file.get()),
+                    self.set_args(grd_prams_dict)),
+                self.update_dem_in_path(os.path.join(self.grd_out_folder.get(), self.grd_out_file.get())),
+                self.update_dem_out_file(os.path.basename(self.grd_input_path.get())),
+                self.update_dem_out_folder(os.path.dirname(self.grd_input_path.get())),
+            ],
         )
         run_grd_button.grid(row=grd_command_frame_row, column=1, pady=2)
 
@@ -381,8 +386,38 @@ class CommandWrapperApp:
         view_button.grid(row=grd_command_frame_row, column=2, pady=2)
 
         return grd_command_frame
+    
+    def create_dem_input_frame(self, parent_frame):
+        # Frame for input selector and button
+        input_frame = ttk.Frame(parent_frame)
+        ttk.Label(input_frame, text="Select File:").pack(side=tk.LEFT, padx=H2_PADX)
+        # File entry field
+        self.dem_input_path = ttk.Entry(input_frame)
+        self.dem_input_path.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
+        # Browse button
+        browse_button = ttk.Button(
+            input_frame,
+            text="...",
+            command=lambda: [
+                self.select_file(self.dem_input_path),
+                self.update_dem_out_file(os.path.basename(self.dem_input_path.get())),
+                self.update_dem_out_folder(os.path.dirname(self.dem_input_path.get())),
+            ],
+        )
+        browse_button.pack(side=tk.LEFT)
+        # Run command button
+        view_button = ttk.Button(
+            input_frame,
+            text="View",
+            command=lambda: self.run_las_view(self.dem_input_path.get()),
+        )
+        view_button.pack(side=tk.RIGHT)
+
+        return input_frame   
 
     def create_dem_command_frame(self, parent_frame):
+        # Dictionary to store frames, variables, and entry values
+        dem_prams_dict = {}
         #dem frame
         dem_command_frame = ttk.Frame(parent_frame)
         dem_command_frame_row = 0
@@ -394,30 +429,148 @@ class CommandWrapperApp:
         dem_lb.pack(side=tk.LEFT, padx=H1_PADX, pady=H1_PADY)
 
         # Info button
-        info_button = ttk.Button(
-            dem_lb_frame,
-            text="Doc. View",
-            command=lambda: self.update_info_box(
-                resource_path("data/dem_blast2dem.txt")
-            ),
-        )
-        info_button.pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+        self.create_info_button(dem_lb_frame, "dem_blast2dem").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
         dem_lb_frame.grid(row=dem_command_frame_row, column=0, pady=2, sticky=tk.W)
         dem_command_frame_row += 1
 
         #Input Path
+        ttk.Label(dem_command_frame, text="Input Selection", font=H2_FONT).grid(
+            row=dem_command_frame_row, column=0, pady=2, sticky=tk.W)
+        dem_command_frame_row+=1
 
-        #Output File
+        self.create_dem_input_frame(dem_command_frame).grid(
+            row=dem_command_frame_row, column=0, pady=2, sticky=tk.EW)
+        dem_command_frame_row+=1
 
-        #Output Folder
+        # Out file
+        dem_out_file_selector = ttk.Frame(dem_command_frame)
+        ttk.Label(dem_out_file_selector, text="Output File:").pack(
+            side=tk.LEFT, padx=VIEW_BTN_PADX
+        )
+        self.dem_out_file = ttk.Entry(dem_out_file_selector)
+        self.dem_out_file.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX)
+
+        dem_out_file_selector.grid(
+            row=dem_command_frame_row, column=0, pady=2, sticky=tk.EW
+        )
+        dem_command_frame_row += 1
+
+        # out folder
+        dem_out_folder_frame = ttk.Frame(dem_command_frame)
+        ttk.Label(dem_out_folder_frame, text="Output Folder:").pack(
+            side=tk.LEFT, padx=VIEW_BTN_PADX
+        )
+        # File entry field
+        self.dem_out_folder = ttk.Entry(dem_out_folder_frame)
+        self.dem_out_folder.pack(
+            side=tk.LEFT, expand=True, fill=tk.X, padx=VIEW_BTN_PADX
+        )
+        # Browse button
+        browse_button = ttk.Button(
+            dem_out_folder_frame,
+            text="...",
+            command=lambda: self.select_folder(self.grd_out_folder),
+        )
+        browse_button.pack(side=tk.LEFT)
+
+        dem_out_folder_frame.grid(row=dem_command_frame_row, column=0, pady=2, sticky=tk.EW)
+        dem_command_frame_row += 1
 
         #Resolution Parameter
+        dem_step_frame = ttk.Frame(dem_command_frame)
+        ttk.Label(dem_step_frame, text="Step (Resolution):").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = dem_step_frame.register(self.decimal_validation)
+        # Info button
+        self.create_info_button(dem_step_frame, "dem_step").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
+        self.dem_step = ttk.Entry(
+            dem_step_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.dem_step.insert(0, DEF_DEM_STEP)
+        self.dem_step.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+        dem_step_frame.grid(row=dem_command_frame_row, column=0, pady=2, stick=tk.W)
+        dem_command_frame_row += 1
+        dem_step_enabled = tk.BooleanVar()
+        dem_step_enabled.set(True)
+        dem_prams_dict["step"] = {
+            "is_enabled": dem_step_enabled,
+            "entry": self.dem_step,
+        }
+        
         #Hillshade Option
+        ttk.Label(dem_command_frame, text="Hillshading", font=H2_FONT).grid(
+            row=dem_command_frame_row, column=0, pady=2, sticky=tk.W)
+        dem_command_frame_row+=1
 
-            #Azimuth suboption
+        #Azimuth suboption
+        sub_frame = ttk.Frame(dem_command_frame)
+        ttk.Label(sub_frame, text="Azimuth (degree):").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = sub_frame.register(self.decimal_validation)
+        # Info button
+        self.create_info_button(sub_frame, "dem_azimuth").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
 
-            #Altitude suboption
+        self.dem_azimuth = ttk.Entry(
+            sub_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.dem_azimuth.insert(0, DEF_DEM_AZIMUTH)
+        self.dem_azimuth.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+
+        sub_frame.grid(row=dem_command_frame_row, column=0, pady=2, stick=tk.W)
+        dem_command_frame_row += 1
+
+        tk_bool_true = tk.BooleanVar()
+        tk_bool_true.set(True)
+        dem_prams_dict["step"] = {
+            "is_enabled": tk_bool_true,
+            "entry": self.dem_azimuth,
+        }
+
+
+        #Altitude suboption
+        sub_frame = ttk.Frame(dem_command_frame)
+        ttk.Label(sub_frame, text="Altitude (degree):").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = sub_frame.register(self.decimal_validation)
+        # Info button
+        self.create_info_button(sub_frame, "dem_altitude").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+
+        self.dem_altitude = ttk.Entry(
+            sub_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.dem_altitude.insert(0, DEF_DEM_ALTITUDE)
+        self.dem_altitude.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+
+        sub_frame.grid(row=dem_command_frame_row, column=0, pady=2, stick=tk.W)
+        dem_command_frame_row += 1
+
+        tk_bool_true = tk.BooleanVar()
+        tk_bool_true.set(True)
+        dem_prams_dict["step"] = {
+            "is_enabled": tk_bool_true,
+            "entry": self.dem_altitude,
+        }
+
+        # r-value suboption
+        sub_frame = ttk.Frame(dem_command_frame)
+        ttk.Label(sub_frame, text="R factor:").pack(side=tk.LEFT, padx=VIEW_BTN_PADX)
+        v_dec_cmd = sub_frame.register(self.decimal_validation)
+        # Info button
+        self.create_info_button(sub_frame, "dem_r_factor").pack(side=tk.RIGHT, padx=VIEW_BTN_PADX)
+
+        self.dem_r_factor = ttk.Entry(
+            sub_frame, validate="all", validatecommand=(v_dec_cmd, "%P")
+        )
+        self.dem_r_factor.insert(0, DEF_DEM_R_FACTOR)
+        self.dem_r_factor.pack(side=tk.LEFT, fill=tk.X, padx=VIEW_BTN_PADX)
+
+        sub_frame.grid(row=dem_command_frame_row, column=0, pady=2, stick=tk.W)
+        dem_command_frame_row += 1
+
+        tk_bool_true = tk.BooleanVar()
+        tk_bool_true.set(True)
+        dem_prams_dict["step"] = {
+            "is_enabled": tk_bool_true,
+            "entry": self.dem_r_factor,
+        }
 
         #Run Command Button
 
@@ -433,6 +586,20 @@ class CommandWrapperApp:
     def update_grd_out_folder(self, output_folder):
         self.grd_out_folder.delete(0, tk.END)
         self.grd_out_folder.insert(0, f"{output_folder}")
+
+    ### DEM Command Callbacks
+
+    def update_dem_in_path(self, input_path):
+        self.dem_input_path.delete(0, tk.END)
+        self.dem_input_path.insert(0, f"{input_path}")
+
+    def update_dem_out_file(self, output_file):
+        self.dem_out_file.delete(0, tk.END)
+        self.dem_out_file.insert(0, f"dem_{output_file}")
+
+    def update_dem_out_folder(self, output_folder):
+        self.dem_out_folder.delete(0, tk.END)
+        self.dem_out_folder.insert(0, f"{output_folder}")
 
     ### Main Textboxes
 
@@ -468,7 +635,7 @@ class CommandWrapperApp:
         title_lb = ttk.Label(self.root, text=WINDOW_TITLE, font=TITLE_FONT)
 
         input_lb = ttk.Label(self.root, text="Input Selection", font=H1_FONT)
-        input_frame = self.create_input_frame()
+        input_frame = self.create_grd_input_frame()
 
         # processing frame
         processing_lb = ttk.Label(self.root, text="Processing", font=H1_FONT)
@@ -525,16 +692,24 @@ def resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 
+def get_usr_input_lastools_path():
+    root = tk.Tk()
+    root.withdraw()
+    return filedialog.askdirectory(title="Enter LASTOOLS path e.g. ../lastools/bin/")
+
+
 def main():
     """Main function to start the application."""
     lastools_path = LASTOOLS_PATH + "\\bin"
-    if not os.path.exists(lastools_path):
+    while not os.path.exists(lastools_path):
         print(f"Cannot find .\\lastools\\bin at {lastools_path}")
-        sys.exit(1)
-    else:
-        print(f"Found {lastools_path} ...")
-
-    print(os.getcwd())
+        usr_input = get_usr_input_lastools_path()
+        if not usr_input:
+            print("No path provided")
+            sys.exit(1)
+        lastools_path = usr_input.strip()
+   
+    print(f"Found {lastools_path} ...")
     # Create Tkinter root window and pass it to the app
     root = tk.Tk()
     app = CommandWrapperApp(root, lastools_path)
