@@ -6,6 +6,7 @@ import tkinter as tk
 from tkinter import ttk, filedialog, scrolledtext
 import subprocess
 import os
+import glob
 import sys
 import math
 from pathlib import Path
@@ -35,12 +36,15 @@ INFOBOX_HEIGHT = 20
 
 MIN_COL_0_W = 700
 
+#Default settings
 DEF_GRD_STEP = "5"
 DEF_DEM_STEP = "0.5"
 DEF_DEM_AZIMUTH = 270
 DEF_DEM_ALTITUDE = 45
 DEF_DEM_R_FACTOR = 1
 DEF_GRD_OP_PARAMS_DEC_ENTRY = ["stddev", "offset", "bulge", "spike", "sub"]
+TILE_SIZE = 500
+TILE_BUFFER = 50
 
 
 ### math ultilty
@@ -154,9 +158,36 @@ class CommandWrapperApp():
     def run_las_ground(self, input_path: str, output_path: str, las_args: str):
         #check input and output paths 
         if input_path:
+            # On use-tile branch: first tile input, use tmp folders
+            tile_command = command = self.lastools_path + "\\"
+            #if output path + raw_tiles/ does not exist create it
+            #if it does exist, remove everything in it
+            raw_tile_folder = os.path.dirname(output_path) + "/raw_tiles/"
+            if os.path.exists(raw_tile_folder):
+                for file in glob.glob(f"{raw_tile_folder}/*" ):
+                    os.remove(file)
+            else:
+                os.makedirs(raw_tile_folder)
+
+            tile_command += f"lastile64.exe -v -i {input_path} -tile_size {TILE_SIZE} -buffer {TILE_BUFFER} -o {raw_tile_folder} -olaz"
+            print(tile_command)
+            returncode = self.check_output(tile_command)
+
+            ### check return code
+            if returncode != 0:
+                print("Error. lastile failed.")
+                sys.exit(1)
+
+            grd_tile_folder = os.path.dirname(output_path) + "/grd_tiles/"
+            if os.path.exists(grd_tile_folder):
+                for file in glob.glob(f"{grd_tile_folder}/*" ):
+                    os.remove(file)
+            else:
+                os.makedirs(grd_tile_folder)
+
             self.update_output(f"lasground: {input_path}")
             command = self.lastools_path + "\\"
-            command += f"lasground64.exe -v -i {input_path} -o {output_path} {las_args}"
+            command += f"lasground64.exe -v -i {raw_tile_folder}*.laz -odir {grd_tile_folder} {las_args} -cores 40"
             self.update_output(command)
             print(command)
             returncode = self.check_output(command)
@@ -167,6 +198,9 @@ class CommandWrapperApp():
                 sys.exit(1)
         else:
             self.update_output(f"Invalid input: {input_path}\n")
+
+
+
 
     def run_blast2dem(self, input_path: str, output_path: str, las_args: str):
         if input_path:
