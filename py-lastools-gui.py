@@ -13,7 +13,7 @@ from pathlib import Path
 
 # Static global constants
 WINDOW_TITLE = "Simple LasTools GUI"
-WINDOW_SIZE = "1600x900"  # Increased size to fit new elements
+WINDOW_SIZE = "1600x950"  # Increased size to fit new elements
 LASTOOLS_PATH = "C:\\lastools"
 
 # Layout settings
@@ -31,7 +31,7 @@ H2_FONT = ("Arial", 12)
 H2_PADX = (5, 5)
 
 # Textbox settings
-TEXTBOX_HEIGHT = 20
+TEXTBOX_HEIGHT = 5
 INFOBOX_HEIGHT = 20
 
 MIN_COL_0_W = 700
@@ -158,19 +158,32 @@ class CommandWrapperApp():
     def run_las_ground(self, input_path: str, output_path: str, las_args: str):
         #check input and output paths 
         if input_path:
+
+            index_command = command = self.lastools_path + "\\"
+            index_command += f"lasindex64.exe -v -i {input_path} -tile_size {TILE_SIZE}"
+            print(index_command)
+            self.update_output(index_command)
+            returncode = self.check_output(index_command)
+
+            ### check return code
+            if returncode != 0:
+                print("Error. lasindex failed.")
+                sys.exit(1)
+
             # On use-tile branch: first tile input, use tmp folders
             tile_command = command = self.lastools_path + "\\"
             #if output path + raw_tiles/ does not exist create it
             #if it does exist, remove everything in it
-            raw_tile_folder = os.path.dirname(output_path) + "/raw_tiles/"
+            raw_tile_folder = os.path.dirname(output_path) + "/tmp_raw_tiles/"
             if os.path.exists(raw_tile_folder):
                 for file in glob.glob(f"{raw_tile_folder}/*" ):
                     os.remove(file)
             else:
                 os.makedirs(raw_tile_folder)
 
-            tile_command += f"lastile64.exe -v -i {input_path} -tile_size {TILE_SIZE} -buffer {TILE_BUFFER} -o {raw_tile_folder} -olaz"
+            tile_command += f"lastile64.exe -v -i {input_path} -tile_size {TILE_SIZE} -buffer {TILE_BUFFER} -o {raw_tile_folder} -olaz -cores 40"
             print(tile_command)
+            self.update_output(tile_command)
             returncode = self.check_output(tile_command)
 
             ### check return code
@@ -178,7 +191,7 @@ class CommandWrapperApp():
                 print("Error. lastile failed.")
                 sys.exit(1)
 
-            grd_tile_folder = os.path.dirname(output_path) + "/grd_tiles/"
+            grd_tile_folder = os.path.dirname(output_path) + "/tmp_grd_tiles/"
             if os.path.exists(grd_tile_folder):
                 for file in glob.glob(f"{grd_tile_folder}/*" ):
                     os.remove(file)
@@ -187,7 +200,7 @@ class CommandWrapperApp():
 
             self.update_output(f"lasground: {input_path}")
             command = self.lastools_path + "\\"
-            command += f"lasground64.exe -v -i {raw_tile_folder}*.laz -odir {grd_tile_folder} {las_args} -cores 40"
+            command += f"lasground64.exe -v -i {raw_tile_folder}*.laz -odir {grd_tile_folder} {las_args} -cores 40 -olaz"
             self.update_output(command)
             print(command)
             returncode = self.check_output(command)
@@ -196,6 +209,38 @@ class CommandWrapperApp():
             if returncode != 0:
                 print("Error. lasground failed.")
                 sys.exit(1)
+
+            final_tile_folder = os.path.dirname(output_path) + "/tmp_final_tiles/"
+            if os.path.exists(final_tile_folder):
+                for file in glob.glob(f"{final_tile_folder}/*" ):
+                    os.remove(file)
+            else:
+                os.makedirs(final_tile_folder)
+
+            ### remove buffer
+            remove_buffer_cmd = self.lastools_path + "\\"
+            remove_buffer_cmd += f"lastile64.exe -v -cores 40 -i {grd_tile_folder}*.laz -remove_buffer -odir {final_tile_folder} -olaz"
+
+            self.update_output(remove_buffer_cmd)
+            print(remove_buffer_cmd)
+            returncode = self.check_output(remove_buffer_cmd)
+             ### check return code
+            if returncode != 0:
+                print("Error. remove_buffer_cmd failed.")
+                sys.exit(1)
+
+            ### merge into one file
+            merge_cmd = self.lastools_path + "\\"
+            merge_cmd += f"lasmerge64.exe -v -i {final_tile_folder}*.laz -o {output_path} "
+
+            self.update_output(merge_cmd)
+            print(merge_cmd)
+            returncode = self.check_output(merge_cmd)
+             ### check return code
+            if returncode != 0:
+                print("Error. merge_cmd failed.")
+                sys.exit(1)
+
         else:
             self.update_output(f"Invalid input: {input_path}\n")
 
@@ -213,7 +258,7 @@ class CommandWrapperApp():
 
             ### check return code
             if returncode != 0:
-                print("Error. lasground failed.")
+                print("Error. blast2dem failed.")
                 sys.exit(1)
         else:
             self.update_output(f"Invalid input: {input_path}\n")
@@ -223,15 +268,15 @@ class CommandWrapperApp():
             x, y, z = sph2cart(float(self.dem_azimuth.get()), float(self.dem_altitude.get()), float(self.dem_r_factor.get()))
             self.update_output(f"lasview: {input_path}")
             command = self.lastools_path + "\\"
-            command += f"blast2dem64.exe -v -hillshade -opng -i -light {round(x, 3)} {round(y, 3)} {round(z, 3)} \
-            {input_path} -o {output_path}"
+            command += f"blast2dem64.exe -v -hillshade -opng -light {round(x, 3)} {round(y, 3)} {round(z, 3)} \
+            -i {input_path} -o {output_path}"
             self.update_output(command)
             print(command)
             returncode = self.check_output(command)
 
             ### check return code
             if returncode != 0:
-                print("Error. lasground failed.")
+                print("Error. hillshade failed.")
                 sys.exit(1)
         else:
             self.update_output(f"Invalid input: {input_path}\n")
@@ -241,6 +286,7 @@ class CommandWrapperApp():
         process = subprocess.Popen(
             command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
+        #this is awful but I don't have time to figure out multithreading 
         while True:
             out = process.stdout.read(1)
             returncode = process.poll()
@@ -248,6 +294,7 @@ class CommandWrapperApp():
                 break
             else:
                 self.update_output(out.decode("utf-8"))
+                #print((out.decode("utf-8")), end='')
         returncode = process.poll()
         return returncode
 
@@ -399,7 +446,6 @@ class CommandWrapperApp():
             "is_enabled": tk_bool_true,
             "entry": self.grd_step,
         }
-
 
         # compute height parameter
         grd_compute_h_frame = ttk.Frame(grd_command_frame)
@@ -790,7 +836,7 @@ class CommandWrapperApp():
         ttk.Separator(parent_frame, orient="horizontal").grid(
             row=1, column=0, sticky=tk.EW, pady=2
         )
-        input_lb.grid(row=2, column=0, sticky=tk.EW, pady=2, padx=TITLE_PADX)
+        input_lb.grid(row=2, column=0, sticky=tk.W, pady=2, padx=TITLE_PADX)
         input_frame.grid(row=3, column=0, sticky=tk.EW, pady=2)
 
         ttk.Separator(parent_frame, orient="horizontal").grid(
@@ -802,11 +848,11 @@ class CommandWrapperApp():
         ttk.Separator(parent_frame, orient="horizontal").grid(
             row=7, column=0, sticky=tk.EW, pady=2
         )
-        output_lb.grid(row=8, column=0, sticky=tk.EW, pady=2, padx=TITLE_PADX)
-        self.output_text.grid(row=9, column=0, pady=2, sticky=tk.NS)
+        output_lb.grid(row=0, column=1, sticky=tk.EW, pady=2, padx=TITLE_PADX)
+        self.output_text.grid(row=1, column=1, pady=2, padx=2, sticky=tk.NS, rowspan=3)
 
-        infobox_lb.grid(row=2, column=1, pady=2, padx=TITLE_PADX)
-        self.infobox.grid(row=3, column=1, rowspan=8, pady=2, padx=2, sticky=tk.NS)
+        infobox_lb.grid(row=4, column=1, pady=2, padx=TITLE_PADX, sticky=tk.EW)
+        self.infobox.grid(row=5, column=1, rowspan=4, pady=2, padx=2, sticky=tk.NS)
 
 
 def resource_path(relative_path):
